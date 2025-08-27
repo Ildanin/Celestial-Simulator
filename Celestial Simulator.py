@@ -1,9 +1,10 @@
 from math import *
 import pygame as pg
 from random import randint
+import concurrent.futures as fut
 
 class CO:
-    def __init__(self,Name,X,Y,Mass,Radius,X_Velocity=0,Y_Velocity=0, color=(255,255,255),feather=False,track_quality=20,track_color='not_given',track_len=10000,collision=True,color_mix=True):
+    def __init__(self,Name,X,Y,Mass,Radius,X_Velocity=0,Y_Velocity=0, color=(255,255,255),feather=False,track_quality=20,track_color='not_given',track_len=1000,collision=True,color_mix=True,material_mix_type='volume'):
         self.name = Name
         self.x = X
         self.y = Y
@@ -15,8 +16,8 @@ class CO:
         self.trace = []
         self.track_len = track_len
         self.feather = feather
-        self.prim_feather = feather
         self.quality = track_quality
+        self.points_amount_per_game_second = 1000//track_quality
         self.remainder = 0
         self.pin = False
         self.track_color = (track_color, 'given')
@@ -26,6 +27,7 @@ class CO:
         pg.draw.ellipse(Screen,self.color,(self.Sx()-self.rect_var[0],self.Sy()-self.rect_var[1],self.rect_var[2],self.rect_var[3]))
         self.collision = collision
         self.color_mix = color_mix
+        self.material_mix_type=material_mix_type
         CO_list.append(self)
 
     def move(self):
@@ -38,16 +40,18 @@ class CO:
         if (x_min-self.r <= self.x <= x_max+self.r) and (y_min-self.r <= self.y <= y_max+self.r):
             pg.draw.ellipse(Screen,self.color,(self.Sx()-self.rect_var[0],self.Sy()-self.rect_var[1],self.rect_var[2],self.rect_var[3]))
 
-    def new_velocity(self,num):
-        i = 0
-        for obj in CO_list:
-            i += 1
-            if self != obj:
-                R=sqrt((obj.x-self.x)**2+(obj.y-self.y)**2)
-                accel = acceleration(obj.m,self.m,R)
-                self.x_v -=accel*((self.x-obj.x)/R)*delta_time
-                self.y_v -=accel*((self.y-obj.y)/R)*delta_time
-                if (self.collision and obj.collision) and (i >= num and R <= self.r+obj.r):
+    def new_velocity(self, celestial_object_number):
+        for i, obj in enumerate(CO_list):
+            if i > celestial_object_number:
+                distance=sqrt((obj.x-self.x)**2+(obj.y-self.y)**2)
+                major_acceleration, minor_acceleration = acceleration(self.m,obj.m,distance)
+                force_radius_vector_x = ((self.x-obj.x)/distance)*delta_time
+                force_radius_vector_y = ((self.y-obj.y)/distance)*delta_time
+                self.x_v -=major_acceleration*force_radius_vector_x
+                self.y_v -=major_acceleration*force_radius_vector_y
+                obj.x_v  +=minor_acceleration*force_radius_vector_x
+                obj.y_v  +=minor_acceleration*force_radius_vector_y
+                if (self.collision and obj.collision) and (distance <= self.r+obj.r):
                     if self.m >= obj.m:
                         Collision_list.append((self,obj))
                     else:
@@ -59,7 +63,7 @@ class CO:
     def Sy(self): 
         return(-height*(self.y-y_max)/dy)
 
-    def track_draw(self):
+    def track_update(self):
         if  speed != 0 and self.remainder + 1000*delta_time >= self.quality:
             self.remainder += 1000*delta_time - self.quality
             self.trace.insert(0,((self.x,self.y),self.track_color[0]))
@@ -67,35 +71,39 @@ class CO:
             self.remainder += 1000*delta_time
         if len(self.trace) == self.track_len+1:
             self.trace.pop(self.track_len)
-        if self.feather:
-            if pinned_object == None or local_trace == False:
-                if feather_type == 'line':
-                    for i in range(len(self.trace)-1):
-                        if (x_min <= self.trace[i][0][0] <= x_max) and (y_min <= self.trace[i][0][1] <= y_max):
-                            pg.draw.line(Screen,self.trace[i][1],Scords(self.trace[i][0]),Scords(self.trace[i+1][0]))
-                else:
-                    for cords in self.trace:
-                        if (x_min <= cords[0][0] <= x_max) and (y_min <= cords[0][1] <= y_max):
-                            pg.draw.circle(Screen,cords[1],Scords(cords[0]),1)
+
+    def track_draw(self):
+        if pinned_object == None or local_trace == False:
+            if feather_type == 'line':
+                for i in range(len(self.trace)-1):
+                    if (x_min <= self.trace[i+1][0][0] <= x_max) and (y_min <= self.trace[i+1][0][1] <= y_max):
+                        pg.draw.line(Screen,self.trace[i][1],Scords(self.trace[i][0]),Scords(self.trace[i+1][0]))
             else:
-                if feather_type == 'line':
-                    next_x_point = self.trace[0][0][0]-pinned_object.trace[0][0][0]+pinned_object.x
-                    next_y_point = self.trace[0][0][1]-pinned_object.trace[0][0][1]+pinned_object.y
-                    for i in range(len(list(zip(self.trace, pinned_object.trace)))-1):
-                        if self.name == '1':
-                            print(len(list(zip(self.trace, pinned_object.trace)))-1)
-                        x_point = next_x_point
-                        y_point = next_y_point
-                        next_x_point = self.trace[i+1][0][0]-pinned_object.trace[i+1][0][0]+pinned_object.x
-                        next_y_point = self.trace[i+1][0][1]-pinned_object.trace[i+1][0][1]+pinned_object.y
-                        if (x_min <= x_point <= x_max) and (y_min <= y_point <= y_max):
-                            pg.draw.line(Screen,self.trace[i][1],Scords((x_point,y_point)),Scords((next_x_point,next_y_point)))
-                elif self != pinned_object:
-                    for i in range(len(list(zip(self.trace, pinned_object.trace)))-1):
-                        x_point = self.trace[i][0][0]-pinned_object.trace[i][0][0]+pinned_object.x
-                        y_point = self.trace[i][0][1]-pinned_object.trace[i][0][1]+pinned_object.y
-                        if (x_min <= x_point <= x_max) and (y_min <= y_point <= y_max):
-                            pg.draw.circle(Screen,self.trace[i][1],Scords((x_point,y_point)),1)
+                for cords in self.trace:
+                    if (x_min <= cords[0][0] <= x_max) and (y_min <= cords[0][1] <= y_max):
+                        pg.draw.circle(Screen,cords[1],Scords(cords[0]),1)
+        else:
+            number_of_included_points = Iteration_len(self.trace,pinned_object.trace)-1
+            if local_trace_shortage:
+                number_of_included_points = 100
+            #    if self.points_amount_per_game_second < number_of_included_points:
+            #        number_of_included_points = self.points_amount_per_game_second
+            if feather_type == 'line':
+                next_x_point = self.trace[0][0][0]-pinned_object.trace[0][0][0]+pinned_object.x
+                next_y_point = self.trace[0][0][1]-pinned_object.trace[0][0][1]+pinned_object.y
+                for i in range(number_of_included_points):
+                    x_point = next_x_point
+                    y_point = next_y_point
+                    next_x_point = self.trace[i+1][0][0]-pinned_object.trace[i+1][0][0]+pinned_object.x
+                    next_y_point = self.trace[i+1][0][1]-pinned_object.trace[i+1][0][1]+pinned_object.y
+                    if (x_min <= next_x_point <= x_max) and (y_min <= next_y_point <= y_max):
+                        pg.draw.line(Screen,self.trace[i][1],Scords((x_point,y_point)),Scords((next_x_point,next_y_point)))
+            elif self != pinned_object:
+                for i in range(number_of_included_points):
+                    x_point = self.trace[i][0][0]-pinned_object.trace[i][0][0]+pinned_object.x
+                    y_point = self.trace[i][0][1]-pinned_object.trace[i][0][1]+pinned_object.y
+                    if (x_min <= x_point <= x_max) and (y_min <= y_point <= y_max):
+                        pg.draw.circle(Screen,self.trace[i][1],Scords((x_point,y_point)),1)
         
     def impact(self,obj):
         mass = self.m + obj.m
@@ -104,9 +112,12 @@ class CO:
                 self.color = ((self.color[0]*self.r**2+obj.color[0]*obj.r**2)/(self.r**2+obj.r**2),(self.color[1]*self.r**2+obj.color[1]*obj.r**2)/(self.r**2+obj.r**2),(self.color[2]*self.r**2+obj.color[2]*obj.r**2)/(self.r**2+obj.r**2))
             if self.track_color[1] == 'not_given':
                 self.track_color = (self.color,'not_given')
+            if self.material_mix_type == 'volume':
+                self.r = sqrt(self.r**2+obj.r**2)
+            elif self.material_mix_type == 'density':
+                self.r = self.r*sqrt(mass/self.m)
             self.x = (self.x*self.m+obj.x*obj.m)/mass
             self.y = (self.y*self.m+obj.y*obj.m)/mass
-            self.r = sqrt(self.r**2+obj.r**2)
             self.x_v = (self.m*self.x_v+obj.m*obj.x_v)/mass
             self.y_v = (self.m*self.y_v+obj.m*obj.y_v)/mass
             self.m = mass
@@ -124,7 +135,8 @@ class CO:
         del obj
         
 
-def Scords(cords): return((width*(cords[0]-x_min)/dx,-height*(cords[1]-y_max)/dy))
+def Scords(cords):
+    return((width*(cords[0]-x_min)/dx,-height*(cords[1]-y_max)/dy))
 
 def Rainbow_color(angle):
     red = 0
@@ -156,6 +168,15 @@ def Rainbow_color(angle):
         blue = 255-255/60*(angle-300)
     return((red,green,blue))
 
+def Iteration_len(list1,list2):
+    len1 = len(list1)
+    len2 = len(list2)
+    if len1 <= len2:
+        return(len1)
+    else:
+        return(len2)
+
+
 #screen_parametrs
 Screen_par=[800,800]
 width=Screen_par[0]
@@ -178,36 +199,38 @@ CO_list=[]
 traces = False
 feather_type = 'line'
 local_trace = False
+local_trace_shortage = False
 pinned_object = None
-prim_speed=1
+prim_speed=0.1
 speed=prim_speed
 G=100
 m=10000
 
-#returns accleretion created by the gravity force 
+#returns Major and minor acceleration created by the gravity force 
 def acceleration(M,m,R):
-    f=G*M*m/R
-    a=f/m
-    return(a)
+    force=G*M*m*R
+    Major_acceleration=force/M
+    minor_acceleration=force/m
+    return(Major_acceleration,minor_acceleration)
 
 #screen_constants
 cam_speed = 0.4
-prim_max_fps = 140
+prim_max_fps = 300
 max_fps=prim_max_fps
 delta_time=speed/max_fps
 
 #Examples
-example = 2
+example = 1
 if   example == 0:
     pass
-elif example == 1: #Star-Planet-Satelite          f=G*M*m/R**2
+elif example == 1: #Star-Planet-Satelite          force=G*M*m/R**2
     G=1
     m=10000
     CO('0',0,0,100*m,15,X_Velocity=0 ,Y_Velocity=-0.5,color=(255,255,0),feather=False)
     CO('1',400,0,m,10,X_Velocity=0 ,Y_Velocity=50,color=(0,0,255),feather=True,track_len=100)
     CO('2',425,0,100,4,X_Velocity=0 ,Y_Velocity=68,color=(0,255,0),feather=True,track_len=100)
-elif example == 2: #polygon n-body problem        f=Any
-    #f=G*M*m/R is recommended
+elif example == 2: #polygon n-body problem        force=Any
+    #force=G*M*m/R is recommended
     G=10
     m=10000
     R=400
@@ -217,15 +240,16 @@ elif example == 2: #polygon n-body problem        f=Any
     for i in range(n):
         angle = i*360/n
         CO(str(i+1),cos(angle*pi/180)*R, sin(angle*pi/180)*R,m,5,X_Velocity=-sin(angle*pi/180)*v, Y_Velocity=cos(angle*pi/180)*v,color=Rainbow_color(angle),feather=False,track_len=1000,collision=impacts)
-elif example == 3: #Proto_solar_system-Black_hole f=G*M*m/R**2
+elif example == 3: #Proto_solar_system-Black_hole force=G*M*m/R**2
     G=100
     m=10000
     n=21
     start=-3000
     end=3000
     CO('Star',0,0,400*m,300,X_Velocity=0,Y_Velocity=0,color=(255,255,0),feather=False)
-    CO('Black_hole',10000,1000,10000*m,20,X_Velocity=0,Y_Velocity=0,color=(220,20,60),feather=False,color_mix=False)
+    CO('Black_hole',10000,1000,10000*m,20,X_Velocity=0,Y_Velocity=0,color=(220,20,60),feather=False,color_mix=False,material_mix_type='density')
     CO_list[-1].pin = True
+    pinned_object = CO_list[-1]
     for i in range(1,n):
         for j in range(1,n):
             q = randint(1,3)
@@ -233,21 +257,20 @@ elif example == 3: #Proto_solar_system-Black_hole f=G*M*m/R**2
             Vx = -k*(start + (end-start)*j/n)/sqrt((start+(end-start)*i/n)**2+(start+(end-start)*j/n)**2)
             Vy = k*(start + (end-start)*i/n)/sqrt((start+(end-start)*i/n)**2+(start+(end-start)*j/n)**2)
             CO('Proto_planet',start+(end-start)*i/n,start+(end-start)*j/n,m/q**2,15/q,X_Velocity=randint(80,120)/100*Vx,Y_Velocity=randint(80,120)/100*Vy,color=(randint(0,255),randint(0,255),randint(0,255)),feather=False)
-elif example == 4: #Star-Planet                   f=G*M*m
+elif example == 4: #Star-Planet                   force=G*M*m
     G=1
     CO('Star',0,0,2000,30,X_Velocity=0 ,Y_Velocity=-1,color=(255,255,0),feather=False)
     CO('Planet',400,0,10,10,X_Velocity=0 ,Y_Velocity=200,color=(0,0,255),feather=True,track_len=1000,track_quality=30)
-elif example == 5: #Star-Planet                   f=G*M*m/R
+elif example == 5: #Star-Planet                   force=G*M*m/R
     G=1
     CO('Star',0,0,1600,30,X_Velocity=0 ,Y_Velocity=-0.05,color=(255,255,0),feather=False)
     CO('Planet',400,0,1,10,X_Velocity=0 ,Y_Velocity=40,color=(0,0,255),feather=True,track_len=1000,track_quality=30)
     CO('Planet',200,0,1,10,X_Velocity=0 ,Y_Velocity=40,color=(0,0,255),feather=True,track_len=1000,track_quality=30)
-elif example == 6: #Star-Planet                   f=G*M*m*R
+elif example == 6: #Star-Planet                   force=G*M*m*R
     G=0.04
     CO('Star',0,0,1600,30,X_Velocity=0 ,Y_Velocity=-3,color=(255,255,0),feather=False)
     CO('Planet',200,0,1,10,X_Velocity=0 ,Y_Velocity=1600,color=(0,0,255),feather=True,track_len=1000,track_quality=10)
     CO('Planet',400,0,1,10,X_Velocity=0 ,Y_Velocity=3200,color=(0,0,255),feather=True,track_len=1000,track_quality=10)
-
 
 
 while True:
@@ -266,12 +289,8 @@ while True:
             elif event.key == pg.K_t:
                 if traces:
                     traces = False
-                    for obj in CO_list:
-                        obj.feather = obj.prim_feather
                 else:
                     traces = True
-                    for obj in CO_list:
-                        obj.feather = True
             elif event.key == pg.K_y:
                 if feather_type == 'dot':
                     feather_type = 'line'
@@ -282,6 +301,13 @@ while True:
                     local_trace = False
                 else:
                     local_trace = True
+            elif event.key == pg.K_i:
+                if local_trace_shortage:
+                    local_trace_shortage = False
+                else:
+                    local_trace_shortage = True
+            #elif event.key == pg.K_SLASH:
+                #print(input())
         elif event.type == pg.MOUSEBUTTONDOWN:
             if pg.mouse.get_pressed()[2]:
                 for obj in CO_list:
@@ -294,10 +320,10 @@ while True:
                             co.pin = False
                         obj.pin = True
                         pinned_object = obj
-                        x_min = obj.x - (Shown_cords[2]-Shown_cords[0])/2
-                        y_min = obj.y - (Shown_cords[3]-Shown_cords[1])/2
-                        x_max = obj.x + (Shown_cords[2]-Shown_cords[0])/2
-                        y_max = obj.y + (Shown_cords[3]-Shown_cords[1])/2
+                        x_min = obj.x-(Shown_cords[2]-Shown_cords[0])/2
+                        y_min = obj.y-(Shown_cords[3]-Shown_cords[1])/2
+                        x_max= obj.x+(Shown_cords[2]-Shown_cords[0])/2
+                        y_max = obj.y+(Shown_cords[3]-Shown_cords[1])/2
                         break
         elif event.type == pg.MOUSEWHEEL:
             if dx >= 1 and dy >= 1:
@@ -350,28 +376,30 @@ while True:
             prim_speed = 0
         speed = round(prim_speed,1)
 
-#game processes and graphics
+#game processes
     Screen.fill('black')
     Collision_list = []
-    celestial_object_number = 0
-    for obj in CO_list:
-        celestial_object_number += 1
-        obj.new_velocity(celestial_object_number)
-        if obj.pin:
-            x_min = obj.x+obj.x_v*delta_time-dx/2
-            y_min = obj.y+obj.y_v*delta_time-dy/2
-            x_max = obj.x+obj.x_v*delta_time+dx/2
-            y_max = obj.y+obj.y_v*delta_time+dy/2
+    for i, obj in enumerate(CO_list):
+        obj.new_velocity(i)
     if Collision_list != []:
         for collision in Collision_list:
             collision[0].impact(collision[1])
     for obj in CO_list:
         obj.move()
+        obj.track_update()
+        if obj.pin:
+            x_min = obj.x-dx/2
+            y_min = obj.y-dy/2
+            x_max = obj.x+dx/2
+            y_max = obj.y+dy/2
+
+#rendering
     for obj in CO_list:
-        obj.track_draw()
+        if obj.feather or traces:
+            obj.track_draw()
     for obj in CO_list:
         obj.co_draw()
-        
+
 #Screen update and other
     fps = clock.get_fps()
     if fps <= prim_max_fps and fps != 0:
@@ -394,7 +422,7 @@ while True:
     '''for i in range(len(CO_list)):
         for j in range(i+1,len(CO_list)):
             pg.draw.line(Screen,'white',Scords((CO_list[i].x,CO_list[i].y)),Scords((CO_list[j].x,CO_list[j].y)))'''
-
+    
     pg.display.flip()
     pg.display.set_caption('Celestial system' + ' | Fps:' + str(round(fps)) + ' | Speed:' + str(speed))
     clock.tick(max_fps)
