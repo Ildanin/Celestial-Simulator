@@ -87,7 +87,7 @@ def load_example_to_window(win : Window, example_n : int, additional_info : list
         Celestial_Object(200, 0, 1,    10, x_velocity = 0 ,y_velocity = 3200, color = (0, 0, 255),   feather = True, trace_len = 1000, trace_quality = 10)
         Celestial_Object(400, 0, 1,    10, x_velocity = 0 ,y_velocity = 1600, color = (0, 0, 255),   feather = True, trace_len = 1000, trace_quality = 10)
     elif example_n == 8:
-        #sample of an example
+        #sample example
         win.force_equation = GMm_d_r2
         win.gravity_constant = 1
 

@@ -9,6 +9,7 @@ Y_MAX = 450
 
 
 #Simulation presets
+EXAMPLE_NUMBER = 2
 PRESERVE_SPEED = True            #if True preserves speed otherwise preserves delta time
 ORIGINAL_SPEED = 1
 ORIGINAL_DELTA_TIME = 0.001

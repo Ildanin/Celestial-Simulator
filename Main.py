@@ -3,13 +3,13 @@ import pygame as pg
 from windowClass import Window
 from parameters import *
 from celestialObjectClass import *
-
 import presetExamples
 
 window = Window(WIDTH, HEIGHT, BACKGROUND_COLOR, X_MIN, X_MAX, Y_MIN, Y_MAX, GRAVITY_CONSTANT, PRESERVE_SPEED, ORIGINAL_SPEED, ORIGINAL_DELTA_TIME, CAMERA_SPEED, SCALING_SPEED, SPEED_CHANGING_SPEED, SPEED_CHANGING_DELTA_TIME)
 clock = pg.time.Clock()
 
-presetExamples.load_example_to_window(window, 2)
+#load example function
+presetExamples.load_example_to_window(window, EXAMPLE_NUMBER)
 
 while True:
 #event handler
