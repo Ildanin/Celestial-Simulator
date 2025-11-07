@@ -1,6 +1,6 @@
 To run the code you need to download pygame library
 https://www.pygame.org
-command: -pip install pygame
+command: pip install pygame
 
 Keys:
 - P to pause or unpause
