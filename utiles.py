@@ -1,36 +1,42 @@
 from math import *
 
-def GMmrp(gravity_cosntant, main_mass, second_mass, distance, power = -2):
-    return(gravity_cosntant * main_mass * second_mass / (distance**power))
+def GMmrp(gravity_constant, main_mass, second_mass, distance, power = -2) -> float:
+    return(gravity_constant * main_mass * second_mass / (distance**power))
 
-def GMm_d_r3(gravity_cosntant, main_mass, second_mass, distance):
-    return(gravity_cosntant * main_mass * second_mass / (distance**3))
+def GMm_d_r3(gravity_constant, main_mass, second_mass, distance) -> float:
+    return(gravity_constant * main_mass * second_mass / (distance**3))
 
-def GMm_d_r2(gravity_cosntant, main_mass, second_mass, distance):
-    return(gravity_cosntant * main_mass * second_mass / (distance**2))
+def GMm_d_r2(gravity_constant, main_mass, second_mass, distance) -> float:
+    return(gravity_constant * main_mass * second_mass / (distance**2))
 
-def GMm_d_r1(gravity_cosntant, main_mass, second_mass, distance):
-    return(gravity_cosntant * main_mass * second_mass / (distance))
+def GMm_d_r1(gravity_constant, main_mass, second_mass, distance) -> float:
+    return(gravity_constant * main_mass * second_mass / (distance))
 
-def GMm(gravity_cosntant, main_mass, second_mass, distance):
-    return(gravity_cosntant * main_mass * second_mass)
+def GMm(gravity_constant, main_mass, second_mass, distance) -> float:
+    return(gravity_constant * main_mass * second_mass)
 
-def GMmr1(gravity_cosntant, main_mass, second_mass, distance):
-    return(gravity_cosntant * main_mass * second_mass * (distance))
+def GMmr1(gravity_constant, main_mass, second_mass, distance) -> float:
+    return(gravity_constant * main_mass * second_mass * (distance))
 
-def GMmr2(gravity_cosntant, main_mass, second_mass, distance):
-    return(gravity_cosntant * main_mass * second_mass * (distance**2))
+def GMmr2(gravity_constant, main_mass, second_mass, distance) -> float:
+    return(gravity_constant * main_mass * second_mass * (distance**2))
 
-def GMmr3(gravity_cosntant, main_mass, second_mass, distance):
-    return(gravity_cosntant * main_mass * second_mass * (distance**3))
+def GMmr3(gravity_constant, main_mass, second_mass, distance) -> float:
+    return(gravity_constant * main_mass * second_mass * (distance**3))
 
-def WTF(gravity_cosntant, main_mass, second_mass, distance):
-    return(gravity_cosntant * main_mass * second_mass * cos(distance / 315))
+def string_like_gravity(gravity_constant, main_mass, second_mass, distance) -> float:
+    string_len = 1000
+    if distance > string_len:
+        return(gravity_constant * (distance - string_len))
+    else:
+        return(0)
+
+def WTF(gravity_constant, main_mass, second_mass, distance) -> float:
+    return(gravity_constant * main_mass * second_mass * cos(distance / 315))
 
 
 
-
-def rainbow_color(angle):
+def rainbow_color(angle) -> tuple[float, float, float]:
     red = 0
     green = 0
     blue = 0
