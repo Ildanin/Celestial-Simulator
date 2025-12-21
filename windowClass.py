@@ -320,6 +320,10 @@ class Window:
             pg.draw.ellipse(self.win.screen, color, (self.win.sx(self.x) - self.win.camera.x_scale * radius, self.win.sy(self.y) - self.win.camera.y_scale * radius,
                             2*self.win.camera.x_scale * radius, 2*self.win.camera.y_scale * radius))
         
+        def undo_progress(self) -> None:
+            if self.stage != 0:
+                self.stage -= 1
+        
         def get_caption(self) -> str:
             mouse_x, mouse_y = self.win.inverse_scords(pg.mouse.get_pos())
             if self.stage == 1:

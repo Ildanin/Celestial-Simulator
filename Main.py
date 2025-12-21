@@ -22,7 +22,7 @@ if __name__ == '__main__':
             elif event.type == pg.MOUSEBUTTONDOWN:
                 if pg.mouse.get_pressed()[2]:
                     window.parameters_handler.unpin()
-                    window.object_generator.stage = 0
+                    window.object_generator.undo_progress()
                 elif pg.mouse.get_pressed()[0]:
                     mouse_x, mouse_y = window.inverse_scords(pg.mouse.get_pos())
                     if window.parameters_handler.creation_mode == True:
@@ -43,10 +43,8 @@ if __name__ == '__main__':
             
             for obj, x_acceleration, y_acceleration in zip(Celestial_Object_list, X_accelerations, Y_accelerations):
                 obj.update_velocity(x_acceleration, y_acceleration)
-
-            for collision in Collisions.__reversed__():
-                obj1 = Celestial_Object_list[collision[0]]
-                obj2 = Celestial_Object_list[collision[1]]
+            
+            for obj1, obj2 in [(Celestial_Object_list[collision[0]], Celestial_Object_list[collision[1]]) for collision in Collisions.__reversed__()]:
                 if obj1.collidable and obj2.collidable:
                     obj1.impact(obj2)
  
