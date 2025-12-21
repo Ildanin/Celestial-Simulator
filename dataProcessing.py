@@ -1,48 +1,86 @@
 from multiprocessing import Pipe, Process
 from math import sqrt
-import time
 
-def dist_func(conn, force_equation):
+def calculate_acceleration(conn, force_equation) -> None:
     while True:
-        results = []
-        batch_size, data_list = conn.recv()
-        for i, coord1 in enumerate(data_list[:batch_size]):
-            intermidiate_results = []
-            for coord2 in data_list[i+1:]:
-                intermidiate_results.append(sqrt((coord1[0] - coord2[0])**2 + (coord1[1] - coord2[1])**2))
-            results.append(intermidiate_results)
-        conn.send(results)
+        start, batch_size, gravity_constant, dataset = conn.recv()
+        X_accelerations: list[float] = [0 for _ in range(len(dataset))]
+        Y_accelerations = X_accelerations.copy()
+        Collisions: list[tuple[int, int]] = []
+        #obj = [x, y, mass, radius]
+        for i, obj1 in enumerate(dataset[:batch_size]):
+            for j, obj2 in enumerate(dataset[i+1:]):
+                distance = sqrt((obj1[0] - obj2[0])**2 + (obj1[1] - obj2[1])**2)
+                force = force_equation(gravity_constant, obj1[2], obj2[2], distance)
+                first_body_acceleration  = force / obj1[2]
+                second_body_acceleration = force / obj2[2]
+                radius_vector_x = ((obj1[0] - obj2[0]) / distance)
+                radius_vector_y = ((obj1[1] - obj2[1]) / distance)
+                X_accelerations[i] -= first_body_acceleration  * radius_vector_x
+                Y_accelerations[i] -= first_body_acceleration  * radius_vector_y
+                X_accelerations[i+j+1] += second_body_acceleration * radius_vector_x
+                Y_accelerations[i+j+1] += second_body_acceleration * radius_vector_y
+                if distance < obj1[3] + obj2[3]:
+                    Collisions.append((i + start, i+j+1 + start))
+        for _ in range(start):
+            X_accelerations.insert(0, 0)
+            Y_accelerations.insert(0, 0)
+        conn.send((X_accelerations, Y_accelerations, Collisions))
 
 class Pool:
     def __init__(self, pool_size: int):
         self.pool_size = pool_size
-        self.pipes = []
-        self.processes = []
+        self.pipes: list = []
+        self.processes: list[Process] = []
+        self.batching: list[int] = []
+        self.dataset_length = -1
     
-    def start(self, force_equation):
+    def update_batchng(self) -> None:
+        batch_size = self.dataset_length * (self.dataset_length - 1) // (2 * self.pool_size)
+        self.batching = [0]
+        counter = 0
+        for n in range(self.dataset_length-1, 0, -1):
+            counter += n
+            if counter >= batch_size:
+                counter = 0
+                self.batching.append(self.dataset_length - n)
+        if counter != 0:
+            self.batching.append(self.dataset_length - 1)
+        if len(self.batching) <= self.pool_size:
+            for _ in range(self.pool_size - len(self.batching) + 1):
+                self.batching.append(self.dataset_length - 1)
+
+    def start(self, force_equation) -> None:
         for _ in range(self.pool_size):
             parent_conn, child_conn = Pipe()
             self.pipes.append(parent_conn)
-            self.processes.append(Process(target=dist_func, args=(child_conn, force_equation)))
+            self.processes.append(Process(target=calculate_acceleration, args=(child_conn, force_equation)))
         for process in self.processes:
             process.start()
     
-    def kill(self):
+    def kill(self) -> None:
         for process in self.processes:
             process.kill()
     
-    def send(self, dataset):
-        batch_size = len(dataset) // self.pool_size
-        for i, pipe in enumerate(self.pipes[:-1]):
-            pipe.send((batch_size, dataset[(i * batch_size):]))
-        self.pipes[-1].send((batch_size + len(dataset) % self.pool_size, dataset[((self.pool_size - 1) * batch_size):]))
+    def send(self, data: tuple[float, list[tuple[float, float, float, float]]]) -> None:
+        gravity_constant, dataset = data
+        if self.dataset_length != len(dataset):
+            self.dataset_length = len(dataset)
+            self.update_batchng()
+        for i, pipe in enumerate(self.pipes):
+            pipe.send((self.batching[i], self.batching[i+1] - self.batching[i], gravity_constant, dataset[self.batching[i]:]))
 
-    def recv(self):
-        processed_data =[]
+    def recv(self) -> tuple[list[float], list[float], list[tuple[int, int]]]:
+        X_accelerations: list[float] = [0 for _ in range(self.dataset_length)]
+        Y_accelerations = X_accelerations.copy()
+        Collisions: list[tuple[int, int]] = []
         for pipe in self.pipes:
-            processed_data += pipe.recv()
-        return(processed_data)
+            x_a, y_a, colls = pipe.recv()
+            X_accelerations = [a1 + a2 for a1, a2 in zip(X_accelerations, x_a)]
+            Y_accelerations = [a1 + a2 for a1, a2 in zip(Y_accelerations, y_a)]
+            Collisions += colls
+        return(X_accelerations, Y_accelerations, Collisions)
     
-    def process(self, dataset):
-        self.send(dataset)
+    def process(self, data: tuple[float, list[tuple[float, float, float, float]]]) -> tuple[list[float], list[float], list[tuple[int, int]]]:
+        self.send(data)
         return(self.recv())

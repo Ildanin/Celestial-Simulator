@@ -1,116 +1,64 @@
 if __name__ == '__main__':
     import pygame as pg
+    import presetExamples
     from dataProcessing import Pool
     from windowClass import window
     from parameters import EXAMPLE_NUMBER, PARALEL_PROCESSES_USED
     from celestialObjectClass import *
-    import presetExamples
-    import time
 
-    #load example function
     presetExamples.load_example_to_window(window, EXAMPLE_NUMBER)
-
-    clock = pg.time.Clock()
-
     pool = Pool(PARALEL_PROCESSES_USED)
-    pool.start(window.force_equation)
+    pool.start(window.parameters_handler.force_equation)
 
     while True:
     #event handler
+        window.parameters_handler.update_sliders(pg.key.get_pressed())
         for event in pg.event.get():
             if event.type == pg.QUIT:
                 pool.kill()
                 exit()
             elif event.type == pg.KEYDOWN:
-                if event.key == pg.K_p:
-                    if window.paused:
-                        window.unpause()
-                    else:
-                        window.pause()
-                elif event.key == pg.K_t:
-                    window.traces = not window.traces
-                    window.update_trace_draw_method()
-                elif event.key == pg.K_y:
-                    window.feather_type = not window.feather_type
-                    window.update_trace_draw_method()
-                elif event.key == pg.K_u:
-                    window.local_traces = not window.local_traces
-                    window.update_trace_draw_method()
-                elif event.key == pg.K_i:
-                    window.traces_shortage = not window.traces_shortage
-                    window.update_trace_draw_method()
-                elif event.key == pg.K_k:
-                    window.preserve_speed = not window.preserve_speed
-                elif event.key == pg.K_l:
-                    window.show_connecting_lines = not window.show_connecting_lines
-                elif event.key == pg.K_m:
-                    window.show_mass_center = not window.show_mass_center
+                window.parameters_handler.update_tumblers(event.key)
             elif event.type == pg.MOUSEBUTTONDOWN:
                 if pg.mouse.get_pressed()[2]:
-                    window.pinned_object = False
-                    window.update_trace_draw_method()
+                    window.parameters_handler.unpin()
+                    window.object_generator.stage = 0
                 elif pg.mouse.get_pressed()[0]:
-                    for obj in Celestial_Object_list:
-                        if pg.Rect(window.sx(obj.x) - window.x_scale * obj.r, window.sy(obj.y) - window.y_scale * obj.r, 2 * window.x_scale * obj.r, 2 * window.y_scale * obj.r).collidepoint(pg.mouse.get_pos()):
-                            window.pinned_object = obj
-                            window.update_trace_draw_method()
+                    mouse_x, mouse_y = window.inverse_scords(pg.mouse.get_pos())
+                    if window.parameters_handler.creation_mode == True:
+                        window.object_generator.confirm(mouse_x, mouse_y)
+                    else:
+                        for obj in Celestial_Object_list:
+                            if (mouse_x - obj.x)**2 + (mouse_y - obj.y)**2 < obj.r**2:
+                                window.parameters_handler.pinned_object = obj
+                                window.parameters_handler.is_pinned_object = True
+                                window.parameters_handler.update_trace_draw_method()
+                                break
             elif event.type == pg.MOUSEWHEEL:
-                window.view_rescale(event.y)
-
-
-    #cam movement
-        keys = pg.key.get_pressed()
-        if keys[pg.K_UP]:
-            window.camera_move_up()
-        if keys[pg.K_DOWN]:
-            window.camera_move_down()
-        if keys[pg.K_RIGHT]:
-            window.camera_move_right()
-        if keys[pg.K_LEFT]:
-            window.camera_move_left()
-        if keys[pg.K_COMMA]:
-            if window.preserve_speed:
-                window.lower_speed()
-            else:
-                window.lower_delta_time()
-        if keys[pg.K_PERIOD]:
-            if window.preserve_speed:
-                window.increase_speed()
-            else:
-                window.increase_delta_time()
+                window.camera.zoom(event.y)
 
     #game processes
-        if window.paused == False:
-            T1 = time.perf_counter()
-
-            Distance_list = pool.process([(obj.x, obj.y) for obj in Celestial_Object_list])
-
-            #T2 = time.perf_counter()
-            #sprint("total", T2-T1)
-
-            for obj in Celestial_Object_list[:-1]:
-                obj.update_velocity(Distance_list)
-
-            T2 = time.perf_counter()
-            print("total", T2-T1)
-        
-            Collision_list: list[tuple[Celestial_Object, Celestial_Object]] = []
-            for obj in [obj for obj in Celestial_Object_list if obj.collision == True]:
-                Collision_list += obj.collision_check(Distance_list)
-            if Collision_list:
-                for obj1, obj2 in Collision_list.__reversed__():
-                    obj1.impact(obj2)
-
+        if window.parameters_handler.paused == False:
+            X_accelerations, Y_accelerations, Collisions = pool.process((window.parameters_handler.gravity_constant, [(obj.x, obj.y, obj.m, obj.r) for obj in Celestial_Object_list]))
             
+            for obj, x_acceleration, y_acceleration in zip(Celestial_Object_list, X_accelerations, Y_accelerations):
+                obj.update_velocity(x_acceleration, y_acceleration)
+
+            for collision in Collisions.__reversed__():
+                obj1 = Celestial_Object_list[collision[0]]
+                obj2 = Celestial_Object_list[collision[1]]
+                if obj1.collidable and obj2.collidable:
+                    obj1.impact(obj2)
+ 
             for obj in Celestial_Object_list:
                 obj.move()
-                obj.trace_handler.trace_update()
+            window.traces_update(Celestial_Object_list)
 
     #rendering
         window.clear()
-        window.camera_move_to_pinned_object()
+        window.camera.move_to_pinned_object()
 
-        if window.traces == True:
+        if window.parameters_handler.traces == True:
             window.draw_traces(Celestial_Object_list)
         else:
             window.draw_traces([obj for obj in Celestial_Object_list if obj.feather])
@@ -119,13 +67,14 @@ if __name__ == '__main__':
             obj.draw()
 
     #Screen update and other
-        clock.get_time()
-        window.update_fps(clock.get_fps())
-        if window.show_mass_center:
+        window.parameters_handler.update_fps()
+        if window.parameters_handler.show_mass_center:
             window.draw_mass_center(Celestial_Object_list)
-        if window.show_connecting_lines:
+        if window.parameters_handler.show_connecting_lines:
             window.draw_connecting_lines(Celestial_Object_list)
+        if window.parameters_handler.creation_mode and window.object_generator.stage != 0:
+            window.object_generator.show_progress()
 
         pg.display.flip()
-        pg.display.set_caption('Celestial system' + ' | Speed:' + str(round(window.speed, 2)) + ' | Delta Time:' + str(round(window.delta_time, 4)) + ' | Fps:' + str(round(window.fps)))
-        clock.tick()
+        window.update_caption()
+        window.clock.tick()
