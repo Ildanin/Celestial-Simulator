@@ -8,9 +8,9 @@ Keys:
 - Y to change feather type (how trace is drawn with lines or dots)
 - U to turn on/off local traces
 - i  to cut traces max length by a factor or not
-- K to change the simulation mode (preserve speed or delta time)
+- J to change the simulation mode (preserve speed or delta time)
 - L to draw connecting lines between bodies or not
-- M to turn on/off mass center
+- K to turn on/off mass center
 - '<' to decrease speed or delta time (normal mode)
 - '>' to increase speed or delta time (normal mode)
 - Left mouse button to pin an object  (normal mode)
