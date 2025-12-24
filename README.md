@@ -17,8 +17,8 @@ Keys:
 - Left mouse button to pin an object  (normal mode)
 - Right mouse button to unpin         (normal mode)
 - '/' to turn on/off creation mode
-- '<' to decrease mass of generated object  (edit mode)
-- '>' to increase mass of generated object  (edit mode)
+- '<' to decrease mass/velocity of a generated object (edit mode)
+- '>' to increase mass/velocity of a generated object (edit mode)
 - Left mouse button to set position -> set color and radius -> set speed and create an object (edit mode)
 - Right mouse button to undo (edit mode)
 - Mouse wheel is used to zoom in or out
