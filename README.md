@@ -3,14 +3,15 @@ https://www.pygame.org
 command: pip install pygame
 
 Keys:
-- P to pause or unpause
 - T to turn on/off traces (doesn't do anything to bodies that have feather = True)
 - Y to change feather type (how trace is drawn with lines or dots)
 - U to turn on/off local traces
-- i  to cut traces max length by a factor or not
+- i to turn on/off cutting traces length
+- P to pause or unpause
+- H to turn on/off speed vectors
 - J to change the simulation mode (preserve speed or delta time)
-- L to draw connecting lines between bodies or not
 - K to turn on/off mass center
+- L to turn on/off connecting lines between bodies
 - '<' to decrease speed or delta time (normal mode)
 - '>' to increase speed or delta time (normal mode)
 - Left mouse button to pin an object  (normal mode)
@@ -18,7 +19,7 @@ Keys:
 - '/' to turn on/off creation mode
 - '<' to decrease mass of generated object  (edit mode)
 - '>' to increase mass of generated object  (edit mode)
-- Left mouse button to set position -> set color and radius -> set speed and create an object  (edit mode)
+- Left mouse button to set position -> set color and radius -> set speed and create an object (edit mode)
 - Right mouse button to undo (edit mode)
 - Mouse wheel is used to zoom in or out
 - Arrows are used to move around
