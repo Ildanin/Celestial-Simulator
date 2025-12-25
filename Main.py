@@ -8,7 +8,7 @@ if __name__ == '__main__':
 
     presetExamples.load_example_to_window(window, EXAMPLE_NUMBER)
     pool = Pool(PARALEL_PROCESSES_USED)
-    pool.start(window.parameters_handler.force_equation)
+    pool.start()
 
     while True:
     #event handler
@@ -20,27 +20,26 @@ if __name__ == '__main__':
             elif event.type == pg.KEYDOWN:
                 window.parameters_handler.update_tumblers(event.key)
             elif event.type == pg.MOUSEBUTTONDOWN:
-                if pg.mouse.get_pressed()[2]:
-                    window.parameters_handler.unpin()
-                    window.object_generator.undo_progress()
-                elif pg.mouse.get_pressed()[0]:
+                if pg.mouse.get_pressed()[0]:
                     mouse_x, mouse_y = window.inverse_scords(pg.mouse.get_pos())
                     if window.parameters_handler.creation_mode == True:
-                        window.object_generator.confirm(mouse_x, mouse_y)
+                        window.object_editor.confirm(mouse_x, mouse_y)
                     else:
-                        for obj in Celestial_Object_list:
-                            if (mouse_x - obj.x)**2 + (mouse_y - obj.y)**2 < obj.r**2:
-                                window.parameters_handler.pinned_object = obj
-                                window.parameters_handler.is_pinned_object = True
-                                window.parameters_handler.update_trace_draw_method()
-                                break
+                        objs = [obj for obj in Celestial_Object_list if (mouse_x - obj.x)**2 + (mouse_y - obj.y)**2 < obj.r**2]
+                        if len(objs) == 1:
+                            window.parameters_handler.pin_object(objs[0])
+                        elif len(objs) > 1:
+                            window.parameters_handler.pin_object(min(((obj, (mouse_x - obj.x)**2 + (mouse_y - obj.y)**2) for obj in objs), key = lambda x: x[1])[0])
+                elif pg.mouse.get_pressed()[2]:
+                    window.parameters_handler.unpin()
+                    window.object_editor.undo_progress()
             elif event.type == pg.MOUSEWHEEL:
                 window.camera.zoom(event.y)
 
     #game processes
-        if window.parameters_handler.paused == False:
-            X_accelerations, Y_accelerations, Collisions = pool.process((window.parameters_handler.gravity_constant, [(obj.x, obj.y, obj.m, obj.r) for obj in Celestial_Object_list]))
-            
+        if window.parameters_handler.paused == False and window.parameters_handler.speed != 0 and window.parameters_handler.delta_time != 0:
+            X_accelerations, Y_accelerations, Collisions = pool.process((window.parameters_handler.force_equation, window.parameters_handler.gravity_constant, [(obj.x, obj.y, obj.m, obj.r) for obj in Celestial_Object_list]))
+
             for obj, x_acceleration, y_acceleration in zip(Celestial_Object_list, X_accelerations, Y_accelerations):
                 obj.update_velocity(x_acceleration, y_acceleration)
             
@@ -70,8 +69,10 @@ if __name__ == '__main__':
             window.draw_mass_center(Celestial_Object_list)
         if window.parameters_handler.show_connecting_lines:
             window.draw_connecting_lines(Celestial_Object_list)
-        if window.parameters_handler.creation_mode and window.object_generator.stage != 0:
-            window.object_generator.show_progress()
+        if window.parameters_handler.creation_mode and window.object_editor.stage != 0:
+            window.object_editor.show_progress()
+        if window.parameters_handler.draw_vectors:
+            window.draw_speed_vectors(Celestial_Object_list)
 
         pg.display.flip()
         window.update_caption()

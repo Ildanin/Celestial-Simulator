@@ -51,13 +51,6 @@ class Celestial_Object:
         self.x_v += x_acceleration * self.parameters_handler.delta_time
         self.y_v += y_acceleration * self.parameters_handler.delta_time
 
-    def collision_check(self, Distance_lsit: list[list[float]]) -> list[tuple]:
-        Collisions = []
-        for obj in Celestial_Object_list[self.index+1:]:
-            if Distance_lsit[self.index][obj.index - self.index - 1] < obj.r + self.r:
-                Collisions.append((self, obj))
-        return(Collisions)
-
     def impact(self, obj) -> None:
         mass = self.m + obj.m
         if self.m < obj.m:

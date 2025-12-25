@@ -28,7 +28,7 @@ def load_example_to_window(win : Window, example_n : int):
         r = 400
         v = 250
         impacts = False
-        n = 40
+        n = 20
         for i in range(n):
             angle = 2 * pi * i / n
             Celestial_Object(win, cos(angle) * r, sin(angle) * r, m, 5, x_velocity = -sin(angle) * v, y_velocity = cos(angle) * v, color = rainbow_color(angle * 180 / pi), feather = False, trace_len = 1000, collidable = impacts)

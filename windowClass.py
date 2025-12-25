@@ -1,7 +1,7 @@
 import pygame as pg
 from parameters import *
 from utiles import rainbow_color
-from math import atan2, sqrt, pi
+from math import atan2, sqrt, pi, sin, cos
 from collections.abc import Callable
 from celestialObjectClass import Celestial_Object
 
@@ -12,10 +12,10 @@ class Window:
         self.background_color = background_color
         
         self.clock = pg.time.Clock()
-        self.parameters_handler = Window.Parameters_handler(self, SPEED_SLIDER_SENSITIVITY, DELTA_TIME_SLIDER_SENSITIVITY, MASS_SLIDER_SENSITIVITY)
+        self.parameters_handler = Window.Parameters_handler(self, PRESERVE_SPEED, ORIGINAL_SPEED, ORIGINAL_DELTA_TIME, SPEED_SLIDER_SENSITIVITY, DELTA_TIME_SLIDER_SENSITIVITY, MASS_SLIDER_SENSITIVITY, VELOCITY_SLIDER_SENSITIVITY)
         self.screen = pg.display.set_mode((width, height))
         self.camera = Window.Camera(self, CAMERA_SPEED, ZOOMING_SPEED, x_min, x_max, y_min, y_max)
-        self.object_generator = Window.Object_generator(self)
+        self.object_editor = Window.Object_editor(self)
 
     class Camera:
         def __init__(self, window, camera_speed: float, zooming_speed: float, x_min: float, x_max: float, y_min: float, y_max: float):
@@ -102,11 +102,13 @@ class Window:
                 return(self.x_min - radius <= x <= self.x_max + radius) and (self.y_min - radius <= y <= self.y_max + radius)
 
     class Parameters_handler:
-        def __init__(self, windwow, speed_slider_sensitivity: float, delta_time_slider_sensitivity: float, mass_slider_sensitivity):
+        def __init__(self, windwow, preseve_speed: float, original_speed: float, original_delta_time: float,
+                     speed_slider_sensitivity: float, delta_time_slider_sensitivity: float, mass_slider_sensitivity: float, velocity_slider_sensitivity: float):
             self.win = windwow
             self.speed_slider_sensitivity = speed_slider_sensitivity
             self.delta_time_slider_sensitivity = delta_time_slider_sensitivity
             self.mass_slider_sensitivity = mass_slider_sensitivity
+            self.velocity_slider_sensitivity = velocity_slider_sensitivity
             
             self.gravity_constant: float
             self.trace_quality = 20
@@ -116,12 +118,12 @@ class Window:
 
             self.paused = False
             self.fps = 1000
-            self.preserve_speed = PRESERVE_SPEED
+            self.preserve_speed = preseve_speed
             if self.preserve_speed:
-                self.speed = ORIGINAL_SPEED
+                self.speed = original_speed
                 self.delta_time = self.speed / self.fps
             else:
-                self.delta_time = ORIGINAL_DELTA_TIME
+                self.delta_time = original_delta_time
                 self.speed = self.delta_time * self.fps
 
             self.traces = False
@@ -132,6 +134,7 @@ class Window:
             self.show_mass_center = True
             self.show_connecting_lines = False
             self.creation_mode = False
+            self.draw_vectors = False
             self.update_trace_draw_method()
 
         def update_tumblers(self, key: int) -> None:
@@ -152,16 +155,18 @@ class Window:
             elif key == pg.K_i:
                 self.traces_shortage = not self.traces_shortage
                 self.update_trace_draw_method()
-            elif key == pg.K_k:
+            elif key == pg.K_j:
                 self.preserve_speed = not self.preserve_speed
             elif key == pg.K_l:
                 self.show_connecting_lines = not self.show_connecting_lines
-            elif key == pg.K_m:
+            elif key == pg.K_k:
                 self.show_mass_center = not self.show_mass_center
+            elif key == pg.K_h:
+                self.draw_vectors = not self.draw_vectors
             elif key == pg.K_SLASH:
                 self.creation_mode = not self.creation_mode
             elif key == pg.K_n:
-                self.win.object_generator.collidable = not self.win.object_generator.collidable
+                self.win.object_editor.collidable = not self.win.object_editor.collidable
             
         def update_sliders(self, keys) -> None:
             if keys[pg.K_UP]:
@@ -173,49 +178,56 @@ class Window:
             if keys[pg.K_LEFT]:
                 self.win.camera.move_left()
             if keys[pg.K_COMMA]:
-                self.lower()
+                self.decrease()
             if keys[pg.K_PERIOD]:
                 self.increase()
 
-        def lower(self):
+        def decrease(self) -> None:
             if self.creation_mode:
-                self.win.object_generator.mass -= self.mass_slider_sensitivity / self.fps
+                self.decrease_editing_parameter()
             else:
-                if self.preserve_speed:
-                    self.lower_speed()
-                else:
-                    self.lower_delta_time()
+                self.decrease_speed_parameter()
 
-        def increase(self):
+        def increase(self) -> None:
             if self.creation_mode:
-                self.win.object_generator.mass += self.mass_slider_sensitivity / self.fps
+                self.increase_editing_parameter()
             else:
-                if self.preserve_speed:
-                    self.increase_speed()
-                else:
-                    self.increase_delta_time()
-            
-        def lower_speed(self) -> None:
-            self.speed -= self.speed_slider_sensitivity / self.fps
-            if self.speed < 0:
-                self.speed = 0
-                self.win.pause()
-            self.delta_time = self.speed / self.fps
+                self.increase_speed_parameter()
+        
+        def decrease_editing_parameter(self) -> None:
+            if self.win.object_editor.stage == 1:
+                self.win.object_editor.mass -= self.mass_slider_sensitivity / self.fps
+            elif self.win.object_editor.stage == 2:
+                self.win.object_editor.velocity_multiplier -= self.velocity_slider_sensitivity / self.fps
+                if self.win.object_editor.velocity_multiplier < 0:
+                    self.win.object_editor.velocity_multiplier = 0
 
-        def increase_speed(self) -> None:
-            self.speed += self.speed_slider_sensitivity / self.fps
-            self.delta_time = self.speed / self.fps
+        def decrease_speed_parameter(self) -> None:
+            if self.preserve_speed:
+                self.speed -= self.speed_slider_sensitivity / self.fps
+                if self.speed < 0:
+                    self.speed = 0
+            else:
+                self.delta_time -= self.delta_time_slider_sensitivity / self.fps
+                if self.delta_time < 0:
+                    self.delta_time = 0
+        
+        def increase_editing_parameter(self) -> None:
+            if self.win.object_editor.stage == 1:
+                self.win.object_editor.mass += self.mass_slider_sensitivity / self.fps
+            elif self.win.object_editor.stage == 2:
+                self.win.object_editor.velocity_multiplier += self.velocity_slider_sensitivity / self.fps
 
-        def lower_delta_time(self) -> None:
-            self.delta_time -= self.delta_time_slider_sensitivity / self.fps
-            if self.delta_time < 0:
-                self.delta_time = 0
-                self.win.pause()
-            self.speed = self.delta_time * self.fps
-
-        def increase_delta_time(self) -> None:
-            self.delta_time += self.delta_time_slider_sensitivity / self.fps
-            self.speed = self.delta_time * self.fps
+        def increase_speed_parameter(self) -> None:
+            if self.preserve_speed:
+                self.speed += self.speed_slider_sensitivity / self.fps
+            else:
+                self.delta_time += self.delta_time_slider_sensitivity / self.fps
+        
+        def pin_object(self, obj):
+            self.pinned_object = obj
+            self.is_pinned_object = True
+            self.update_trace_draw_method()
         
         def unpin(self) -> None:
             if self.is_pinned_object:
@@ -256,7 +268,7 @@ class Window:
                     else:
                         self.speed = self.delta_time * self.fps
 
-    class Object_generator:
+    class Object_editor:
         def __init__(self, window):
             self.win = window
             self.velocity_multiplier = 2
@@ -305,7 +317,6 @@ class Window:
 
         def create_object(self) -> None:
             Celestial_Object(self.win, self.x, self.y, self.mass, self.radius, self.x_velocity, self.y_velocity, self.color, collidable = self.collidable, trace_len = 1000)
-            self.stage = 0
         
         def show_progress(self) -> None:
             mouse_x, mouse_y = self.win.inverse_scords(pg.mouse.get_pos())
@@ -316,7 +327,7 @@ class Window:
                 radius = self.radius
                 color = self.color
             if self.stage == 2:
-                pg.draw.line(self.win.screen, color, self.win.scords((self.x, self.y)), (pg.mouse.get_pos()))
+                self.win.draw_arrow(color, self.win.scords((self.x, self.y)), (pg.mouse.get_pos()))
             pg.draw.ellipse(self.win.screen, color, (self.win.sx(self.x) - self.win.camera.x_scale * radius, self.win.sy(self.y) - self.win.camera.y_scale * radius,
                             2*self.win.camera.x_scale * radius, 2*self.win.camera.y_scale * radius))
         
@@ -324,22 +335,24 @@ class Window:
             if self.stage != 0:
                 self.stage -= 1
         
-        def get_caption(self) -> str:
+        def get_caption_editing(self) -> str:
             mouse_x, mouse_y = self.win.inverse_scords(pg.mouse.get_pos())
             if self.stage == 1:
-                radius = round(self.get_radius(mouse_x, mouse_y))
+                radius = self.get_radius(mouse_x, mouse_y)
             else:
-                radius = round(self.radius)
-            return(f'Creation mode | Mass: {round(self.mass)} | Radius: {radius} | Velocity: {round(self.get_velocity(mouse_x, mouse_y))} | Collision: {self.collidable}')
-    
+                radius = self.radius
+            return(f'Edit mode | Mass: {round(self.mass)} | Radius: {round(radius)} | Velocity: {round(self.get_velocity(mouse_x, mouse_y))} | Collision: {self.collidable}')
+        
+        def get_caption_info(self, obj: Celestial_Object) -> str:
+            return(f'Edit mode | Body info: | Mass: {round(obj.m)} | Radius: {round(obj.r)} | Velocity: {round(sqrt(obj.x_v**2 + obj.y_v**2))} | Collision: {obj.collidable}')
+
     def pause(self) -> None:
         self.parameters_handler.paused = True
     
     def unpause(self) -> None:
-        if self.parameters_handler.paused:
-            self.parameters_handler.paused = False
-            if self.parameters_handler.delta_time != 0:
-                self.parameters_handler.fps = self.parameters_handler.speed / self.parameters_handler.delta_time
+        self.parameters_handler.paused = False
+        if self.parameters_handler.delta_time != 0:
+            self.parameters_handler.fps = self.parameters_handler.speed / self.parameters_handler.delta_time
 
     def sx(self, x: float) -> float: 
         return(self.camera.x_scale * (x - self.camera.x_min))
@@ -347,7 +360,7 @@ class Window:
     def sy(self, y: float) -> float: 
         return(-self.camera.y_scale * (y - self.camera.y_max))
 
-    def scords(self, cords) -> tuple[float, float]:
+    def scords(self, cords: tuple[float, float]) -> tuple[float, float]:
         return((self.camera.x_scale * (cords[0] - self.camera.x_min), -self.camera.y_scale * (cords[1] - self.camera.y_max)))
     
     def inverse_sx(self, sx: float) -> float: 
@@ -358,10 +371,10 @@ class Window:
 
     def inverse_scords(self, scords: tuple[float, float]) -> tuple[float, float]:
         return((scords[0] / self.camera.x_scale + self.camera.x_min), (-scords[1] / self.camera.y_scale + self.camera.y_max))
-    
+
     def clear(self) -> None:
         self.screen.fill(self.background_color)
-    
+
     def traces_update(self, Celestial_Object_list: list[Celestial_Object]) -> None: #
         self.parameters_handler.remainder += 1000 * self.parameters_handler.delta_time
         if  self.parameters_handler.remainder >= self.parameters_handler.trace_quality:
@@ -387,17 +400,36 @@ class Window:
             y /= collective_mass
             pg.draw.circle(self.screen, (255, 255, 255), self.scords((x, y)), 2)
 
+    def draw_arrow(self, color: tuple[int, int, int], coords1: tuple[float, float], coords2: tuple[float, float], alpha = pi/6, tip_coef = 0.1):
+        theta = atan2(coords2[0] - coords1[0], coords1[1] - coords2[1])
+        tip_len = tip_coef * sqrt((coords1[0] - coords2[0])**2 + (coords1[1] - coords2[1])**2)
+        pg.draw.line(self.screen, color, coords1, coords2)
+        pg.draw.line(self.screen, color, coords2, (coords2[0] - tip_len * sin(theta + alpha), coords2[1] + tip_len * cos(theta + alpha)))
+        pg.draw.line(self.screen, color, coords2, (coords2[0] - tip_len * sin(theta - alpha), coords2[1] + tip_len * cos(theta - alpha)))
+
+    def draw_speed_vectors(self, Celestial_Object_list: list[Celestial_Object], max_len = -1, len_multiplier = 1) -> None:
+        for obj in Celestial_Object_list:
+            length = obj.x_v**2 + obj.y_v**2
+            if length > max_len**2 and max_len != -1:
+                scalar = max_len / sqrt(length)
+                self.draw_arrow(obj.color, self.scords((obj.x, obj.y)), self.scords((obj.x + scalar * obj.x_v, obj.y + scalar * obj.y_v)))
+            else:
+                self.draw_arrow(obj.color, self.scords((obj.x, obj.y)), self.scords((obj.x + len_multiplier * obj.x_v, obj.y + len_multiplier * obj.y_v)))
+    
     def draw_connecting_lines(self, Celestial_Object_list: list[Celestial_Object]) -> None:
         for i, obj1 in enumerate(Celestial_Object_list):
             for obj2 in Celestial_Object_list[i+1:]:
                 pg.draw.line(self.screen, (255, 255 ,255), self.scords((obj1.x, obj1.y)), self.scords((obj2.x, obj2.y)))
 
     def update_caption(self) -> None:
-        if self.parameters_handler.creation_mode and self.object_generator.stage != 0:
-            pg.display.set_caption(self.object_generator.get_caption())
-        elif self.parameters_handler.creation_mode:
-            mouse_x, mouse_y = self.inverse_scords(pg.mouse.get_pos())
-            pg.display.set_caption(f'Creation mode | X: {round(mouse_x)} | Y: {round(mouse_y)}')
+        if self.parameters_handler.creation_mode:
+            if self.object_editor.stage != 0:
+                pg.display.set_caption(self.object_editor.get_caption_editing())
+            elif self.parameters_handler.is_pinned_object:
+                pg.display.set_caption(self.object_editor.get_caption_info(self.parameters_handler.pinned_object))
+            else:
+                mouse_x, mouse_y = self.inverse_scords(pg.mouse.get_pos())
+                pg.display.set_caption(f'Creation mode | X: {round(mouse_x)} | Y: {round(mouse_y)}')
         else:
             pg.display.set_caption(f'Celestial system | Speed: {round(self.parameters_handler.speed, 2)} | Delta Time: {round(self.parameters_handler.delta_time, 4)} | Fps: {round(self.parameters_handler.fps)}')
     
