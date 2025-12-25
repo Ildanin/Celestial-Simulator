@@ -12,7 +12,7 @@ class Window:
         self.background_color = background_color
         
         self.clock = pg.time.Clock()
-        self.parameters_handler = Window.Parameters_handler(self, PRESERVE_SPEED, ORIGINAL_SPEED, ORIGINAL_DELTA_TIME, SPEED_SLIDER_SENSITIVITY, DELTA_TIME_SLIDER_SENSITIVITY, MASS_SLIDER_SENSITIVITY, VELOCITY_SLIDER_SENSITIVITY)
+        self.parameters_handler = Window.Parameters_handler(self, PRESERVE_SPEED, ORIGINAL_SPEED, ORIGINAL_DELTA_TIME, SPEED_SLIDER_SENSITIVITY, DELTA_TIME_SLIDER_SENSITIVITY, MASS_SLIDER_SENSITIVITY, VELOCITY_SLIDER_SENSITIVITY, ARROW_MAX_LEN)
         self.screen = pg.display.set_mode((width, height))
         self.camera = Window.Camera(self, CAMERA_SPEED, ZOOMING_SPEED, x_min, x_max, y_min, y_max)
         self.object_editor = Window.Object_editor(self)
@@ -103,7 +103,7 @@ class Window:
 
     class Parameters_handler:
         def __init__(self, windwow, preseve_speed: float, original_speed: float, original_delta_time: float,
-                     speed_slider_sensitivity: float, delta_time_slider_sensitivity: float, mass_slider_sensitivity: float, velocity_slider_sensitivity: float):
+                     speed_slider_sensitivity: float, delta_time_slider_sensitivity: float, mass_slider_sensitivity: float, velocity_slider_sensitivity: float, arrow_max_len: float = -1):
             self.win = windwow
             self.speed_slider_sensitivity = speed_slider_sensitivity
             self.delta_time_slider_sensitivity = delta_time_slider_sensitivity
@@ -115,6 +115,7 @@ class Window:
             self.remainder: float = 0
             self.force_equation: Callable
             self.pinned_object: Celestial_Object
+            self.arrow_max_len = arrow_max_len
 
             self.paused = False
             self.fps = 1000
@@ -407,14 +408,21 @@ class Window:
         pg.draw.line(self.screen, color, coords2, (coords2[0] - tip_len * sin(theta + alpha), coords2[1] + tip_len * cos(theta + alpha)))
         pg.draw.line(self.screen, color, coords2, (coords2[0] - tip_len * sin(theta - alpha), coords2[1] + tip_len * cos(theta - alpha)))
 
-    def draw_speed_vectors(self, Celestial_Object_list: list[Celestial_Object], max_len = -1, len_multiplier = 1) -> None:
-        for obj in Celestial_Object_list:
-            length = obj.x_v**2 + obj.y_v**2
-            if length > max_len**2 and max_len != -1:
-                scalar = max_len / sqrt(length)
+    def draw_speed_vectors(self, Celestial_Object_list: list[Celestial_Object]) -> None:
+        if self.object_editor.velocity_multiplier != 0:
+            len_multiplier = 1 / self.object_editor.velocity_multiplier
+            for obj in Celestial_Object_list:
+                length = (obj.x_v**2 + obj.y_v**2)
+                if length * len_multiplier**2  > self.parameters_handler.arrow_max_len**2 and self.parameters_handler.arrow_max_len != -1:
+                    scalar = self.parameters_handler.arrow_max_len / sqrt(length)
+                    self.draw_arrow(obj.color, self.scords((obj.x, obj.y)), self.scords((obj.x + scalar * obj.x_v, obj.y + scalar * obj.y_v)))
+                else:
+                    self.draw_arrow(obj.color, self.scords((obj.x, obj.y)), self.scords((obj.x + len_multiplier * obj.x_v, obj.y + len_multiplier * obj.y_v)))
+        elif self.parameters_handler.arrow_max_len != -1:
+            for obj in Celestial_Object_list:
+                length = (obj.x_v**2 + obj.y_v**2)
+                scalar = self.parameters_handler.arrow_max_len / sqrt(length)
                 self.draw_arrow(obj.color, self.scords((obj.x, obj.y)), self.scords((obj.x + scalar * obj.x_v, obj.y + scalar * obj.y_v)))
-            else:
-                self.draw_arrow(obj.color, self.scords((obj.x, obj.y)), self.scords((obj.x + len_multiplier * obj.x_v, obj.y + len_multiplier * obj.y_v)))
     
     def draw_connecting_lines(self, Celestial_Object_list: list[Celestial_Object]) -> None:
         for i, obj1 in enumerate(Celestial_Object_list):
