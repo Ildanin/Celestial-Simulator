@@ -1,6 +1,6 @@
 #Widndow settings
 EXAMPLE_NUMBER = 3
-PRESERVE_SPEED = True            #if True preserves speed otherwise preserves delta time
+PARALEL_PROCESSES_USED = 10
 
 #Screen settings
 WIDTH = 600
@@ -11,6 +11,17 @@ X_MAX = 450
 Y_MIN = -450
 Y_MAX = 450
 
+#Default celestial object settings
+MASS = 500
+COLOR = (255, 255, 255)
+FEATHER = False
+COLLIDABLE = True
+TRACE_COLOR = None
+TRACE_LEN = 100
+TRACE_SHORTAGE_SIGNIFICANCE = 0.1
+COLOR_MIX = True
+MATERIAL_MIX_TYPE = 'volume'
+
 #Slider and movement settings
 CAMERA_SPEED = 0.4
 ZOOMING_SPEED = 0.1
@@ -20,9 +31,11 @@ MASS_SLIDER_SENSITIVITY = 100
 VELOCITY_SLIDER_SENSITIVITY = 1
 
 #Simulation settings
-PARALEL_PROCESSES_USED = 10
+PRESERVE_SPEED = True #if True preserves speed otherwise preserves delta time
 ORIGINAL_SPEED = 1
 ORIGINAL_DELTA_TIME = 0.001
+TRACE_QUALITY = 0.02
 
 #Other
 ARROW_MAX_LEN = -1 #if =-1 sets no limit
+LENGTH_MULTIPLIER = 0.25

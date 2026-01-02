@@ -6,19 +6,19 @@ from collections.abc import Callable
 from celestialObjectClass import Celestial_Object
 
 class Window:
-    def __init__(self, width: float, height: float, background_color: tuple[int, int, int], x_min: float, x_max: float, y_min: float, y_max: float):
+    def __init__(self, width: float, height: float, background_color: tuple[int, int, int], x_min: float, x_max: float, y_min: float, y_max: float) -> None:
         self.width = width
         self.height = height
         self.background_color = background_color
         
         self.clock = pg.time.Clock()
-        self.parameters_handler = Window.Parameters_handler(self, PRESERVE_SPEED, ORIGINAL_SPEED, ORIGINAL_DELTA_TIME, SPEED_SLIDER_SENSITIVITY, DELTA_TIME_SLIDER_SENSITIVITY, MASS_SLIDER_SENSITIVITY, VELOCITY_SLIDER_SENSITIVITY, ARROW_MAX_LEN)
         self.screen = pg.display.set_mode((width, height))
+        self.parameters_handler = Window.Parameters_handler(self, PRESERVE_SPEED, ORIGINAL_SPEED, ORIGINAL_DELTA_TIME, TRACE_QUALITY, ARROW_MAX_LEN, SPEED_SLIDER_SENSITIVITY, DELTA_TIME_SLIDER_SENSITIVITY, MASS_SLIDER_SENSITIVITY, VELOCITY_SLIDER_SENSITIVITY)
         self.camera = Window.Camera(self, CAMERA_SPEED, ZOOMING_SPEED, x_min, x_max, y_min, y_max)
-        self.object_editor = Window.Object_editor(self)
+        self.object_editor = Window.Object_editor(self, MASS, 1/LENGTH_MULTIPLIER, COLLIDABLE)
 
     class Camera:
-        def __init__(self, window, camera_speed: float, zooming_speed: float, x_min: float, x_max: float, y_min: float, y_max: float):
+        def __init__(self, window, camera_speed: float, zooming_speed: float, x_min: float, x_max: float, y_min: float, y_max: float) -> None:
             self.win = window
             self.moving_speed = camera_speed
             self.zooming_speed = zooming_speed
@@ -31,6 +31,16 @@ class Window:
             self.x_scale = self.win.width / self.dx
             self.y_scale = self.win.height / self.dy
 
+        def move(self, keys):
+            if keys[pg.K_UP]:
+                self.move_up()
+            if keys[pg.K_DOWN]:
+                self.move_down()
+            if keys[pg.K_RIGHT]:
+                self.move_right()
+            if keys[pg.K_LEFT]:
+                self.move_left()
+        
         def move_up(self) -> None:
             self.win.parameters_handler.unpin()
             self.y_min += self.dy * self.moving_speed / self.win.parameters_handler.fps
@@ -58,7 +68,7 @@ class Window:
             self.x_max = x + self.dx / 2
             self.y_max = y + self.dy / 2
 
-        def move_to_object(self, obj) -> None:
+        def move_to_object(self, obj: Celestial_Object) -> None:
             self.move_to(obj.x, obj.y)
         
         def move_to_pinned_object(self) -> None:
@@ -95,29 +105,29 @@ class Window:
             self.x_scale = self.win.width / self.dx
             self.y_scale = self.win.height / self.dy
 
-        def check_visibility(self, x, y, radius = 0) -> bool:
+        def check_visibility(self, x: float, y: float, radius: float = 0) -> bool:
             if radius == 0:
                 return(self.x_min <= x <= self.x_max) and (self.y_min <= y <= self.y_max)
             else:
                 return(self.x_min - radius <= x <= self.x_max + radius) and (self.y_min - radius <= y <= self.y_max + radius)
 
     class Parameters_handler:
-        def __init__(self, windwow, preseve_speed: float, original_speed: float, original_delta_time: float,
-                     speed_slider_sensitivity: float, delta_time_slider_sensitivity: float, mass_slider_sensitivity: float, velocity_slider_sensitivity: float, arrow_max_len: float = -1):
-            self.win = windwow
+        def __init__(self, window, preseve_speed: float, original_speed: float, original_delta_time: float, trace_quality: float, arrow_max_len: float,
+                     speed_slider_sensitivity: float, delta_time_slider_sensitivity: float, mass_slider_sensitivity: float, velocity_slider_sensitivity: float) -> None:
+            self.win = window
             self.speed_slider_sensitivity = speed_slider_sensitivity
             self.delta_time_slider_sensitivity = delta_time_slider_sensitivity
             self.mass_slider_sensitivity = mass_slider_sensitivity
             self.velocity_slider_sensitivity = velocity_slider_sensitivity
             
             self.gravity_constant: float
-            self.trace_quality = 20
+            self.trace_quality = trace_quality
             self.remainder: float = 0
             self.force_equation: Callable
             self.pinned_object: Celestial_Object
             self.arrow_max_len = arrow_max_len
+            self.len_multiplier: float
 
-            self.paused = False
             self.fps = 1000
             self.preserve_speed = preseve_speed
             if self.preserve_speed:
@@ -127,6 +137,7 @@ class Window:
                 self.delta_time = original_delta_time
                 self.speed = self.delta_time * self.fps
 
+            self.paused = False
             self.traces = False
             self.local_traces = False
             self.traces_shortage = False
@@ -170,14 +181,6 @@ class Window:
                 self.win.object_editor.collidable = not self.win.object_editor.collidable
             
         def update_sliders(self, keys) -> None:
-            if keys[pg.K_UP]:
-                self.win.camera.move_up()
-            if keys[pg.K_DOWN]:
-                self.win.camera.move_down()
-            if keys[pg.K_RIGHT]:
-                self.win.camera.move_right()
-            if keys[pg.K_LEFT]:
-                self.win.camera.move_left()
             if keys[pg.K_COMMA]:
                 self.decrease()
             if keys[pg.K_PERIOD]:
@@ -202,6 +205,8 @@ class Window:
                 self.win.object_editor.velocity_multiplier -= self.velocity_slider_sensitivity / self.fps
                 if self.win.object_editor.velocity_multiplier < 0:
                     self.win.object_editor.velocity_multiplier = 0
+            if self.win.object_editor.velocity_multiplier != 0:
+                self.len_multiplier = 1/self.win.object_editor.velocity_multiplier
 
         def decrease_speed_parameter(self) -> None:
             if self.preserve_speed:
@@ -218,6 +223,7 @@ class Window:
                 self.win.object_editor.mass += self.mass_slider_sensitivity / self.fps
             elif self.win.object_editor.stage == 2:
                 self.win.object_editor.velocity_multiplier += self.velocity_slider_sensitivity / self.fps
+            self.len_multiplier = 1/self.win.object_editor.velocity_multiplier
 
         def increase_speed_parameter(self) -> None:
             if self.preserve_speed:
@@ -225,7 +231,7 @@ class Window:
             else:
                 self.delta_time += self.delta_time_slider_sensitivity / self.fps
         
-        def pin_object(self, obj):
+        def pin_object(self, obj) -> None:
             self.pinned_object = obj
             self.is_pinned_object = True
             self.update_trace_draw_method()
@@ -239,25 +245,25 @@ class Window:
             if self.local_traces == True and self.is_pinned_object:
                 if self.feather_type == True:
                     if self.traces_shortage == True:
-                        self.trace_draw_function = Celestial_Object.Trace_handler.trace_draw_local_with_lines_shorted
+                        self.trace_draw_function = Celestial_Object.Trace_handler.draw_local_with_lines_shorted
                     else:
-                        self.trace_draw_function = Celestial_Object.Trace_handler.trace_draw_local_with_lines
+                        self.trace_draw_function = Celestial_Object.Trace_handler.draw_local_with_lines
                 else:
                     if self.traces_shortage == True:
-                        self.trace_draw_function = Celestial_Object.Trace_handler.trace_draw_local_with_circles_shorted
+                        self.trace_draw_function = Celestial_Object.Trace_handler.draw_local_with_circles_shorted
                     else:
-                        self.trace_draw_function = Celestial_Object.Trace_handler.trace_draw_local_with_circles
+                        self.trace_draw_function = Celestial_Object.Trace_handler.draw_local_with_circles
             else:
                 if self.feather_type == True:
                     if self.traces_shortage == True:
-                        self.trace_draw_function = Celestial_Object.Trace_handler.trace_draw_absolute_with_lines_shorted
+                        self.trace_draw_function = Celestial_Object.Trace_handler.draw_absolute_with_lines_shorted
                     else:
-                        self.trace_draw_function = Celestial_Object.Trace_handler.trace_draw_absolute_with_lines
+                        self.trace_draw_function = Celestial_Object.Trace_handler.draw_absolute_with_lines
                 else:
                     if self.traces_shortage == True:
-                        self.trace_draw_function = Celestial_Object.Trace_handler.trace_draw_absolute_with_circles_shorted
+                        self.trace_draw_function = Celestial_Object.Trace_handler.draw_absolute_with_circles_shorted
                     else:
-                        self.trace_draw_function = Celestial_Object.Trace_handler.trace_draw_absolute_with_circles
+                        self.trace_draw_function = Celestial_Object.Trace_handler.draw_absolute_with_circles
         
         def update_fps(self) -> None:
             current_fps = self.win.clock.get_fps()
@@ -270,12 +276,13 @@ class Window:
                         self.speed = self.delta_time * self.fps
 
     class Object_editor:
-        def __init__(self, window):
+        def __init__(self, window, mass: float, velocity_multiplier: float, collidable) -> None:
             self.win = window
-            self.velocity_multiplier = 2
+            self.mass = mass
+            self.velocity_multiplier = velocity_multiplier
+            self.win.parameters_handler.len_multiplier = 1/velocity_multiplier
+            self.collidable = collidable
             self.stage = 0
-            self.mass = 100
-            self.collidable = False
 
         def confirm(self, mouse_x: float, mouse_y: float) -> None:
             if self.stage == 0:
@@ -317,8 +324,9 @@ class Window:
             self.y_velocity = (mouse_y - self.y) * self.velocity_multiplier
 
         def create_object(self) -> None:
-            Celestial_Object(self.win, self.x, self.y, self.mass, self.radius, self.x_velocity, self.y_velocity, self.color, collidable = self.collidable, trace_len = 1000)
-        
+            obj = Celestial_Object(self.win, self.x, self.y, self.mass, self.radius, self.x_velocity, self.y_velocity, self.color, collidable = self.collidable)
+            obj.reindex(0)
+
         def show_progress(self) -> None:
             mouse_x, mouse_y = self.win.inverse_scords(pg.mouse.get_pos())
             if self.stage == 1:
@@ -346,7 +354,7 @@ class Window:
         
         def get_caption_info(self, obj: Celestial_Object) -> str:
             return(f'Edit mode | Body info: | Mass: {round(obj.m)} | Radius: {round(obj.r)} | Velocity: {round(sqrt(obj.x_v**2 + obj.y_v**2))} | Collision: {obj.collidable}')
-
+    
     def pause(self) -> None:
         self.parameters_handler.paused = True
     
@@ -363,7 +371,7 @@ class Window:
 
     def scords(self, cords: tuple[float, float]) -> tuple[float, float]:
         return((self.camera.x_scale * (cords[0] - self.camera.x_min), -self.camera.y_scale * (cords[1] - self.camera.y_max)))
-    
+
     def inverse_sx(self, sx: float) -> float: 
         return((sx / self.camera.x_scale + self.camera.x_min))
 
@@ -375,19 +383,22 @@ class Window:
 
     def clear(self) -> None:
         self.screen.fill(self.background_color)
-
-    def traces_update(self, Celestial_Object_list: list[Celestial_Object]) -> None: #
-        self.parameters_handler.remainder += 1000 * self.parameters_handler.delta_time
-        if  self.parameters_handler.remainder >= self.parameters_handler.trace_quality:
-            self.parameters_handler.remainder -= self.parameters_handler.trace_quality
+    
+    def traces_update(self, Celestial_Object_list: list[Celestial_Object]) -> None:
+        self.parameters_handler.remainder += self.parameters_handler.delta_time
+        if self.parameters_handler.remainder >= self.parameters_handler.trace_quality:
+            self.parameters_handler.remainder = 0
             for obj in Celestial_Object_list:
                 obj.trace_handler.trace_update()
+            if self.parameters_handler.is_pinned_object:
+                for obj in Celestial_Object_list:
+                    obj.trace_handler.local_trace_update()
 
     def draw_traces(self, Celestial_Object_list: list[Celestial_Object]) -> None:
         for obj in Celestial_Object_list:
             if len(obj.trace_handler.trace) > 1:
                 self.parameters_handler.trace_draw_function(obj.trace_handler)
-
+    
     def draw_mass_center(self, Celestial_Object_list: list[Celestial_Object]) -> None:
         x = 0
         y = 0
@@ -401,7 +412,7 @@ class Window:
             y /= collective_mass
             pg.draw.circle(self.screen, (255, 255, 255), self.scords((x, y)), 2)
 
-    def draw_arrow(self, color: tuple[int, int, int], coords1: tuple[float, float], coords2: tuple[float, float], alpha = pi/6, tip_coef = 0.1):
+    def draw_arrow(self, color: tuple[int, int, int], coords1: tuple[float, float], coords2: tuple[float, float], alpha: float = pi/6, tip_coef: float = 0.1):
         theta = atan2(coords2[0] - coords1[0], coords1[1] - coords2[1])
         tip_len = tip_coef * sqrt((coords1[0] - coords2[0])**2 + (coords1[1] - coords2[1])**2)
         pg.draw.line(self.screen, color, coords1, coords2)
@@ -409,25 +420,49 @@ class Window:
         pg.draw.line(self.screen, color, coords2, (coords2[0] - tip_len * sin(theta - alpha), coords2[1] + tip_len * cos(theta - alpha)))
 
     def draw_speed_vectors(self, Celestial_Object_list: list[Celestial_Object]) -> None:
+        if self.parameters_handler.local_traces and self.parameters_handler.is_pinned_object:
+            self.draw_relative_speed_vectors(Celestial_Object_list)
+        else:
+            self.draw_absolute_speed_vectors(Celestial_Object_list)
+    
+    def draw_absolute_speed_vectors(self, Celestial_Object_list: list[Celestial_Object]) -> None:
         if self.object_editor.velocity_multiplier != 0:
-            len_multiplier = 1 / self.object_editor.velocity_multiplier
             for obj in Celestial_Object_list:
                 length = (obj.x_v**2 + obj.y_v**2)
-                if length * len_multiplier**2  > self.parameters_handler.arrow_max_len**2 and self.parameters_handler.arrow_max_len != -1:
+                if length * self.parameters_handler.len_multiplier**2  > self.parameters_handler.arrow_max_len**2 and self.parameters_handler.arrow_max_len != -1:
                     scalar = self.parameters_handler.arrow_max_len / sqrt(length)
                     self.draw_arrow(obj.color, self.scords((obj.x, obj.y)), self.scords((obj.x + scalar * obj.x_v, obj.y + scalar * obj.y_v)))
                 else:
-                    self.draw_arrow(obj.color, self.scords((obj.x, obj.y)), self.scords((obj.x + len_multiplier * obj.x_v, obj.y + len_multiplier * obj.y_v)))
+                    self.draw_arrow(obj.color, self.scords((obj.x, obj.y)), self.scords((obj.x + self.parameters_handler.len_multiplier * obj.x_v, obj.y + self.parameters_handler.len_multiplier * obj.y_v)))
         elif self.parameters_handler.arrow_max_len != -1:
             for obj in Celestial_Object_list:
                 length = (obj.x_v**2 + obj.y_v**2)
                 scalar = self.parameters_handler.arrow_max_len / sqrt(length)
                 self.draw_arrow(obj.color, self.scords((obj.x, obj.y)), self.scords((obj.x + scalar * obj.x_v, obj.y + scalar * obj.y_v)))
     
+    def draw_relative_speed_vectors(self, Celestial_Object_list: list[Celestial_Object]) -> None:
+        if self.object_editor.velocity_multiplier != 0:
+            for obj in Celestial_Object_list:
+                x_velocity = obj.x_v - self.parameters_handler.pinned_object.x_v
+                y_velocity = obj.y_v - self.parameters_handler.pinned_object.y_v
+                length = (x_velocity**2 + y_velocity**2)
+                if length * self.parameters_handler.len_multiplier**2  > self.parameters_handler.arrow_max_len**2 and self.parameters_handler.arrow_max_len != -1:
+                    scalar = self.parameters_handler.arrow_max_len / sqrt(length)
+                    self.draw_arrow(obj.color, self.scords((obj.x, obj.y)), self.scords((obj.x + scalar * x_velocity, obj.y + scalar * y_velocity)))
+                else:
+                    self.draw_arrow(obj.color, self.scords((obj.x, obj.y)), self.scords((obj.x + self.parameters_handler.len_multiplier * x_velocity, obj.y + self.parameters_handler.len_multiplier * y_velocity)))
+        elif self.parameters_handler.arrow_max_len != -1:
+            for obj in Celestial_Object_list:
+                x_velocity = obj.x_v - self.parameters_handler.pinned_object.x_v
+                y_velocity = obj.y_v - self.parameters_handler.pinned_object.y_v
+                length = (x_velocity**2 + y_velocity**2)
+                scalar = self.parameters_handler.arrow_max_len / sqrt(length)
+                self.draw_arrow(obj.color, self.scords((obj.x, obj.y)), self.scords((obj.x + scalar * x_velocity, obj.y + scalar * y_velocity)))
+    
     def draw_connecting_lines(self, Celestial_Object_list: list[Celestial_Object]) -> None:
         for i, obj1 in enumerate(Celestial_Object_list):
             for obj2 in Celestial_Object_list[i+1:]:
-                pg.draw.line(self.screen, (255, 255 ,255), self.scords((obj1.x, obj1.y)), self.scords((obj2.x, obj2.y)))
+                pg.draw.line(self.screen, (255, 255, 255), self.scords((obj1.x, obj1.y)), self.scords((obj2.x, obj2.y)))
 
     def update_caption(self) -> None:
         if self.parameters_handler.creation_mode:

@@ -9,10 +9,14 @@ if __name__ == '__main__':
     presetExamples.load_example_to_window(window, EXAMPLE_NUMBER)
     pool = Pool(PARALEL_PROCESSES_USED)
     pool.start()
-
+    pool.send((window.parameters_handler.force_equation, window.parameters_handler.gravity_constant, [(obj.x, obj.y, obj.m, obj.r) for obj in Celestial_Object_list]))
+    
     while True:
     #event handler
-        window.parameters_handler.update_sliders(pg.key.get_pressed())
+        keys = pg.key.get_pressed()
+        window.camera.move(keys)
+        window.parameters_handler.update_sliders(keys)
+
         for event in pg.event.get():
             if event.type == pg.QUIT:
                 pool.kill()
@@ -30,6 +34,9 @@ if __name__ == '__main__':
                             window.parameters_handler.pin_object(objs[0])
                         elif len(objs) > 1:
                             window.parameters_handler.pin_object(min(((obj, (mouse_x - obj.x)**2 + (mouse_y - obj.y)**2) for obj in objs), key = lambda x: x[1])[0])
+                        if window.parameters_handler.is_pinned_object:
+                            for obj in Celestial_Object_list:
+                                obj.trace_handler.local_trace_generate()
                 elif pg.mouse.get_pressed()[2]:
                     window.parameters_handler.unpin()
                     window.object_editor.undo_progress()
@@ -38,7 +45,7 @@ if __name__ == '__main__':
 
     #game processes
         if window.parameters_handler.paused == False and window.parameters_handler.speed != 0 and window.parameters_handler.delta_time != 0:
-            X_accelerations, Y_accelerations, Collisions = pool.process((window.parameters_handler.force_equation, window.parameters_handler.gravity_constant, [(obj.x, obj.y, obj.m, obj.r) for obj in Celestial_Object_list]))
+            X_accelerations, Y_accelerations, Collisions = pool.recv()
 
             for obj, x_acceleration, y_acceleration in zip(Celestial_Object_list, X_accelerations, Y_accelerations):
                 obj.update_velocity(x_acceleration, y_acceleration)
@@ -49,6 +56,7 @@ if __name__ == '__main__':
  
             for obj in Celestial_Object_list:
                 obj.move()
+            pool.send((window.parameters_handler.force_equation, window.parameters_handler.gravity_constant, [(obj.x, obj.y, obj.m, obj.r) for obj in Celestial_Object_list]))
             window.traces_update(Celestial_Object_list)
 
     #rendering
